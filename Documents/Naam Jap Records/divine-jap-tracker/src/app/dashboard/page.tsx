@@ -146,6 +146,11 @@ export default function Dashboard() {
     }
   }, [user, fetchDashboardData])
 
+  // Reset the ref when user changes
+  useEffect(() => {
+    dataFetchedRef.current = false
+  }, [user])
+
   const handleSubmitJap = async (count: number) => {
     if (!user) return
 
@@ -190,8 +195,8 @@ export default function Dashboard() {
   const handleEditCount = async (date: Date, newCount: number) => {
     if (!user) return
 
-    // Don't send API calls for 0 counts
-    if (newCount === 0) {
+    // Don't send API calls for 0 counts or invalid values
+    if (newCount === 0 || isNaN(newCount) || newCount < 0) {
       return
     }
 

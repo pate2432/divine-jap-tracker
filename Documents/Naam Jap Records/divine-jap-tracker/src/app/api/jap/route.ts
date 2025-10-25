@@ -100,8 +100,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure count is a valid integer
-    const validCount = parseInt(count) || 0
-    if (validCount < 0) {
+    if (count === null || count === undefined || count === '') {
+      return NextResponse.json(
+        { error: 'Count is required' },
+        { status: 400 }
+      )
+    }
+
+    const validCount = parseInt(count)
+    if (isNaN(validCount) || validCount < 0) {
       return NextResponse.json(
         { error: 'Count must be a non-negative number' },
         { status: 400 }
