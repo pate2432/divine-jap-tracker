@@ -52,6 +52,9 @@ export default function Dashboard() {
   const [dailyQuote, setDailyQuote] = useState(getDailyQuote())
   const [motivationalMessage, setMotivationalMessage] = useState<string | null>(null)
 
+  // Use useRef to prevent infinite loops
+  const dataFetchedRef = useRef(false)
+
   useEffect(() => {
     const storedUser = localStorage.getItem('user')
     if (storedUser) {
@@ -142,11 +145,6 @@ export default function Dashboard() {
       fetchDashboardData(user)
     }
   }, [user, fetchDashboardData])
-
-  // Reset the ref when user changes
-  useEffect(() => {
-    dataFetchedRef.current = false
-  }, [user])
 
   const handleSubmitJap = async (count: number) => {
     if (!user) return
