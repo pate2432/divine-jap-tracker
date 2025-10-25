@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -137,10 +137,16 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (user) {
+    if (user && !dataFetchedRef.current) {
+      dataFetchedRef.current = true
       fetchDashboardData(user)
     }
   }, [user, fetchDashboardData])
+
+  // Reset the ref when user changes
+  useEffect(() => {
+    dataFetchedRef.current = false
+  }, [user])
 
   const handleSubmitJap = async (count: number) => {
     if (!user) return
@@ -185,6 +191,11 @@ export default function Dashboard() {
 
   const handleEditCount = async (date: Date, newCount: number) => {
     if (!user) return
+
+    // Don't send API calls for 0 counts
+    if (newCount === 0) {
+      return
+    }
 
     const editableDate = new Date(date)
     editableDate.setHours(0, 0, 0, 0)

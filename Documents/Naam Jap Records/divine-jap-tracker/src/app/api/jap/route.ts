@@ -108,6 +108,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Don't create records with 0 count unless explicitly requested
+    if (validCount === 0) {
+      return NextResponse.json({ message: 'No count to record' }, { status: 200 })
+    }
+
     const targetDate = date ? new Date(date) : new Date()
     targetDate.setHours(0, 0, 0, 0)
 
