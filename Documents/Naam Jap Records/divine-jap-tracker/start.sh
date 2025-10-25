@@ -18,4 +18,4 @@ echo "Running Prisma generate..."
 npx prisma generate
 
 echo "Starting Next.js application..."
-npm run start
+exec npm run start
