@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "npx prisma generate",
-    "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh"
+    "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
+    "railway:start": "bash start.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",

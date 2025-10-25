@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "npm run build"
 
 [deploy]
-startCommand = "./start.sh"
+startCommand = "npm run railway:start"
 healthcheckPath = "/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
