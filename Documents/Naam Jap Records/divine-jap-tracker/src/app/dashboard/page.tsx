@@ -65,8 +65,12 @@ export default function Dashboard() {
   }, [router])
 
   const fetchDashboardData = useCallback(async (currentUser: User) => {
+    if (dataFetchedRef.current) return // Prevent multiple calls
+    
     setIsLoading(true)
     setError(null)
+    dataFetchedRef.current = true
+    
     try {
       // Fetch today's count
       const todayResponse = await fetch(`/api/jap?userId=${currentUser.id}&username=${currentUser.username}&period=day`)
@@ -142,10 +146,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (user && !dataFetchedRef.current) {
       console.log('Fetching dashboard data for user:', user.username)
-      dataFetchedRef.current = true
       fetchDashboardData(user)
     }
-  }, [user])
+  }, [user, fetchDashboardData])
 
   // Reset the ref when user changes
   useEffect(() => {
@@ -176,7 +179,7 @@ export default function Dashboard() {
       })
 
       if (response.ok) {
-        await fetchDashboardData(user)
+        await refreshData()
         // Check for motivational message
         if (count > 0 && count % 108 === 0) {
           setMotivationalMessage(`Great job, ${user.username}! You've completed ${count} japs today! Keep going!`)
@@ -194,6 +197,13 @@ export default function Dashboard() {
       setError('An unexpected error occurred.')
     }
   }
+
+  const refreshData = useCallback(async () => {
+    if (user) {
+      dataFetchedRef.current = false
+      await fetchDashboardData(user)
+    }
+  }, [user, fetchDashboardData])
 
   const handleEditCount = async (date: Date, newCount: number) => {
     if (!user) return
@@ -232,7 +242,7 @@ export default function Dashboard() {
       })
 
       if (response.ok) {
-        await fetchDashboardData(user)
+        await refreshData()
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to update jap count.')
