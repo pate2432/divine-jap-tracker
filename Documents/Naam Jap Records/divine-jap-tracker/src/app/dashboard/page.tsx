@@ -146,9 +146,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (user && !dataFetchedRef.current) {
       console.log('Fetching dashboard data for user:', user.username)
+      dataFetchedRef.current = true
       fetchDashboardData(user)
     }
-  }, [user, fetchDashboardData])
+  }, [user])
 
   // Reset the ref when user changes
   useEffect(() => {
@@ -209,7 +210,7 @@ export default function Dashboard() {
     if (!user) return
 
     // Don't send API calls for 0 counts or invalid values
-    if (newCount === 0 || isNaN(newCount) || newCount < 0) {
+    if (newCount === 0 || isNaN(newCount) || newCount < 0 || newCount === null || newCount === undefined) {
       return
     }
 
@@ -459,13 +460,17 @@ export default function Dashboard() {
                     onBlur={(e) => {
                       const value = e.target.value
                       const numValue = value === '' ? 0 : parseInt(value) || 0
-                      handleEditCount(record.date, numValue)
+                      if (numValue > 0) {
+                        handleEditCount(record.date, numValue)
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const value = e.currentTarget.value
                         const numValue = value === '' ? 0 : parseInt(value) || 0
-                        handleEditCount(record.date, numValue)
+                        if (numValue > 0) {
+                          handleEditCount(record.date, numValue)
+                        }
                       }
                     }}
                     className={`w-28 p-3 border-2 rounded-lg text-center text-lg font-bold transition-all duration-200 focus:outline-none focus:ring-2 ${
