@@ -140,16 +140,18 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (user && !dataFetchedRef.current) {
+    if (user && !dataFetchedRef.current && !isLoading) {
       console.log('Fetching dashboard data for user:', user.username)
       dataFetchedRef.current = true
       fetchDashboardData(user)
     }
-  }, [user])
+  }, [user, isLoading])
 
   // Reset the ref when user changes
   useEffect(() => {
-    dataFetchedRef.current = false
+    if (user) {
+      dataFetchedRef.current = false
+    }
   }, [user])
 
   const handleSubmitJap = async (count: number) => {
