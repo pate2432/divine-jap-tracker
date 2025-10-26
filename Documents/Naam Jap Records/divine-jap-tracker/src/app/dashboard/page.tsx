@@ -140,12 +140,12 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (user && !dataFetchedRef.current && !isLoading) {
+    if (user && !dataFetchedRef.current) {
       console.log('Fetching dashboard data for user:', user.username)
       dataFetchedRef.current = true
       fetchDashboardData(user)
     }
-  }, [user, isLoading])
+  }, [user])
 
   // Reset the ref when user changes
   useEffect(() => {
