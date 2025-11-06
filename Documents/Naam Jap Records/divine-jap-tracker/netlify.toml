@@ -1,5 +1,4 @@
 [build]
-  base = "Documents/Naam Jap Records/divine-jap-tracker"
   command = "npm run build"
   publish = ".next"
 
