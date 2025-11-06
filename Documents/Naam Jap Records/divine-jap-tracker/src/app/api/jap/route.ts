@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { getUserTimezone, getTodayInTimezone } from '@/lib/timezone'
 
 const prisma = new PrismaClient()
 
@@ -29,11 +30,12 @@ export async function GET(request: NextRequest) {
       endDate = new Date(targetDate)
       endDate.setHours(23, 59, 59, 999)
     } else if (period === 'day') {
-      // Today
-      const now = new Date()
-      startDate = new Date(now)
+      // Today in user's timezone
+      const userTimezone = getUserTimezone(username)
+      const today = getTodayInTimezone(userTimezone)
+      startDate = new Date(today)
       startDate.setHours(0, 0, 0, 0)
-      endDate = new Date(now)
+      endDate = new Date(today)
       endDate.setHours(23, 59, 59, 999)
     } else if (period === 'week') {
       // This week
@@ -120,7 +122,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'No count to record' }, { status: 200 })
     }
 
-    const targetDate = date ? new Date(date) : new Date()
+    // If no date provided, use today in user's timezone
+    const userTimezone = getUserTimezone(username)
+    const targetDate = date ? new Date(date) : getTodayInTimezone(userTimezone)
     targetDate.setHours(0, 0, 0, 0)
 
     // Upsert the jap count for the day

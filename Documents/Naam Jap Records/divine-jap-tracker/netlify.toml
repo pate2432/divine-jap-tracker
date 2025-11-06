@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Environment variables must be set in Netlify dashboard
+# Required variables:
+# - DATABASE_URL (PostgreSQL connection string, e.g., postgresql://user:pass@host:5432/dbname)
+# - NODE_ENV=production
+

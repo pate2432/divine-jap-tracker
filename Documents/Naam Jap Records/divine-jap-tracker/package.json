@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate && next build",
+    "build": "node scripts/netlify-setup.js && npx prisma generate && next build",
+    "build:local": "npx prisma generate && next build",
     "start": "bash start.sh",
     "start:simple": "next start",
     "lint": "eslint",
     "postinstall": "npx prisma generate",
     "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
-    "railway:start": "bash start.sh"
+    "railway:start": "bash start.sh",
+    "netlify:build": "npm run build"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",

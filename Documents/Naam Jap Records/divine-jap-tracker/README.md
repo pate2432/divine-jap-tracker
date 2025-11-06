@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Divine Jap Tracker
+
+A spiritual practice tracking application for tracking daily Nam Jap counts together.
+
+## Features
+
+- 🔐 User authentication with secure password hashing
+- 📿 Daily count tracking with Digital Mala component
+- 📊 Statistics and progress visualization
+- 🏆 Competitive side-by-side comparison for the last 7 days
+- 📈 Weekly progress charts
+- 📱 Responsive design with beautiful UI
+- 💾 Data persistence with Prisma ORM
+- 📄 PDF export functionality
+
+## Tech Stack
+
+- **Framework**: Next.js 16.0.0 (React 19.2.0)
+- **Language**: TypeScript
+- **Database**: SQLite (local) / PostgreSQL (production)
+- **ORM**: Prisma 6.18.0
+- **Styling**: Tailwind CSS 4
+- **UI Libraries**: Framer Motion, Recharts, Lucide React
+- **Authentication**: bcryptjs
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 20 or higher
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/pate2432/divine-jap-tracker.git
+cd divine-jap-tracker
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+# Create .env.local file
+DATABASE_URL="file:./dev.db"
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Initialize the database:
+```bash
+npx prisma generate
+npx prisma db push
+node seed.js
+```
 
-## Learn More
+5. Run the development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Default Users
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Username**: `ak` | **Password**: `password123`
+- **Username**: `manna` | **Password**: `password123`
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Netlify
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [NETLIFY_DEPLOYMENT.md](./NETLIFY_DEPLOYMENT.md) for detailed deployment instructions.
+
+### Railway
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for Railway deployment instructions.
+
+## Project Structure
+
+```
+divine-jap-tracker/
+├── src/
+│   ├── app/
+│   │   ├── api/          # API routes
+│   │   ├── dashboard/    # Dashboard page
+│   │   └── page.tsx      # Login page
+│   ├── components/       # React components
+│   └── lib/              # Utility functions
+├── prisma/               # Database schema
+├── public/               # Static assets
+└── scripts/              # Deployment scripts
+```
+
+## Development
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+## License
+
+Private project

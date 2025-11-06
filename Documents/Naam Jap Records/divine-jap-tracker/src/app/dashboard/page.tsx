@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Download, LogOut, Heart, Star } from 'lucide-react'
+import { Download, LogOut } from 'lucide-react'
 import DigitalMala from '@/components/DigitalMala'
 import { exportToPDF } from '@/lib/pdfExport'
 import { getDailyQuote } from '@/lib/quotes'
+import { getUserTimezone, getTodayInTimezone, getLast7DaysInTimezone, formatDateInTimezone, isTodayInTimezone } from '@/lib/timezone'
 
 interface User {
   id: string
@@ -40,6 +41,20 @@ interface CombinedStats {
   users: { username: string; totalCount: number }[]
 }
 
+interface ComparisonDay {
+  date: Date
+  users: { username: string; count: number; userId: string }[]
+  winner: string | null
+  total: number
+}
+
+interface ComparisonData {
+  comparisonData: ComparisonDay[]
+  userStats: { username: string; userId: string; totalCount: number; daysWon: number; daysTied: number; averageDaily: number }[]
+  overallWinner: string
+  totalDays: number
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -47,6 +62,7 @@ export default function Dashboard() {
   const [dailyRecords, setDailyRecords] = useState<DailyRecord[]>([])
   const [statistics, setStatistics] = useState<Statistics | null>(null)
   const [combinedStats, setCombinedStats] = useState<CombinedStats | null>(null)
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dailyQuote, setDailyQuote] = useState(getDailyQuote())
@@ -62,12 +78,12 @@ export default function Dashboard() {
     } else {
       router.push('/')
     }
+    setIsLoading(false) // Set loading to false after checking user
   }, [router])
 
   const fetchDashboardData = useCallback(async (currentUser: User) => {
     if (dataFetchedRef.current) return // Prevent multiple calls
     
-    setIsLoading(true)
     setError(null)
     dataFetchedRef.current = true
     
@@ -91,15 +107,21 @@ export default function Dashboard() {
       const combinedData = await combinedResponse.json()
       setCombinedStats(combinedData)
 
-      // Fetch daily records for the last 7 days
-      const now = new Date()
-      const last7Days = []
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(now)
-        date.setDate(date.getDate() - i)
-        date.setHours(0, 0, 0, 0)
-        last7Days.push(date)
+      // Fetch comparison data
+      const comparisonResponse = await fetch(`/api/jap/comparison`)
+      if (comparisonResponse.ok) {
+        const comparison = await comparisonResponse.json() as ComparisonData
+        // Convert date strings to Date objects
+        comparison.comparisonData = comparison.comparisonData.map((day) => ({
+          ...day,
+          date: new Date(day.date)
+        }))
+        setComparisonData(comparison)
       }
+
+      // Fetch daily records for the last 7 days in user's timezone
+      const userTimezone = getUserTimezone(currentUser.username)
+      const last7Days = getLast7DaysInTimezone(userTimezone)
 
       const dailyRecordsData = []
       for (const date of last7Days) {
@@ -138,32 +160,22 @@ export default function Dashboard() {
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err)
       setError('Failed to load dashboard data.')
-    } finally {
-      setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
     if (user && !dataFetchedRef.current) {
-      console.log('Fetching dashboard data for user:', user.username)
       dataFetchedRef.current = true
       fetchDashboardData(user)
     }
-  }, [user])
-
-  // Reset the ref when user changes
-  useEffect(() => {
-    if (user) {
-      dataFetchedRef.current = false
-    }
-  }, [user])
+  }, [user, fetchDashboardData])
 
   const handleSubmitJap = async (count: number) => {
     if (!user) return
 
-    const now = new Date()
-    const userDate = new Date(now)
-    userDate.setHours(0, 0, 0, 0)
+    // Get today in user's timezone
+    const userTimezone = getUserTimezone(user.username)
+    const userDate = getTodayInTimezone(userTimezone)
 
     try {
       const response = await fetch('/api/jap', {
@@ -181,6 +193,16 @@ export default function Dashboard() {
 
       if (response.ok) {
         await refreshData()
+      // Refresh comparison data
+      const comparisonResponse = await fetch(`/api/jap/comparison`)
+      if (comparisonResponse.ok) {
+        const comparison = await comparisonResponse.json() as ComparisonData
+        comparison.comparisonData = comparison.comparisonData.map((day) => ({
+          ...day,
+          date: new Date(day.date)
+        }))
+        setComparisonData(comparison)
+      }
         // Check for motivational message
         if (count > 0 && count % 108 === 0) {
           setMotivationalMessage(`Great job, ${user.username}! You've completed ${count} japs today! Keep going!`)
@@ -217,12 +239,21 @@ export default function Dashboard() {
     const editableDate = new Date(date)
     editableDate.setHours(0, 0, 0, 0)
 
-    // Allow editing for the last 7 days
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const diffTime = Math.abs(today.getTime() - editableDate.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    // Allow editing for the last 7 days (today and the past 6 days) in user's timezone
+    const userTimezone = getUserTimezone(user.username)
+    const today = getTodayInTimezone(userTimezone)
+    
+    // Check if date is in the future (not allowed)
+    if (editableDate.getTime() > today.getTime()) {
+      alert('You can only edit counts for the last 7 days.')
+      return
+    }
+    
+    // Calculate days difference (past dates will be positive)
+    const diffTime = today.getTime() - editableDate.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
+    // Allow editing for today (0 days) through 6 days ago (total of 7 days)
     if (diffDays > 6) {
       alert('You can only edit counts for the last 7 days.')
       return
@@ -244,6 +275,16 @@ export default function Dashboard() {
 
       if (response.ok) {
         await refreshData()
+      // Refresh comparison data
+      const comparisonResponse = await fetch(`/api/jap/comparison`)
+      if (comparisonResponse.ok) {
+        const comparison = await comparisonResponse.json() as ComparisonData
+        comparison.comparisonData = comparison.comparisonData.map((day) => ({
+          ...day,
+          date: new Date(day.date)
+        }))
+        setComparisonData(comparison)
+      }
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Failed to update jap count.')
@@ -278,7 +319,28 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen p-8 bg-gradient-to-br from-pink-50 to-purple-50">
       <header className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800">Divine Jap Tracker</h1>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-4xl font-bold text-gray-800">Divine Jap Tracker</h1>
+          {user && (
+            <div className="flex items-center space-x-3 ml-6">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-purple-300 shadow-lg">
+                <Image
+                  src={`/${user.username}.jpg`}
+                  alt={`${user.username} profile`}
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-600">Welcome back,</span>
+                <span className="text-2xl font-bold capitalize bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  {user.username}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleLogout}
           className="flex items-center space-x-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
@@ -404,8 +466,13 @@ export default function Dashboard() {
           </div>
           <div className="space-y-3">
             {dailyRecords.map((record, index) => {
-              const isToday = record.date.toDateString() === new Date().toDateString()
-              const isYesterday = record.date.toDateString() === new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString()
+              const userTimezone = getUserTimezone(user?.username || '')
+              const today = getTodayInTimezone(userTimezone)
+              const yesterday = new Date(today)
+              yesterday.setDate(yesterday.getDate() - 1)
+              
+              const isToday = record.date.toDateString() === today.toDateString()
+              const isYesterday = record.date.toDateString() === yesterday.toDateString()
               
               return (
                 <div 
@@ -433,7 +500,7 @@ export default function Dashboard() {
                         ? 'text-blue-800'
                         : 'text-gray-700'
                     }`}>
-                      {record.date.toLocaleDateString('en-US', { 
+                      {formatDateInTimezone(record.date, userTimezone, { 
                         weekday: 'long', 
                         year: 'numeric', 
                         month: 'long', 
@@ -487,6 +554,287 @@ export default function Dashboard() {
             })}
           </div>
         </motion.div>
+
+        {/* Competitive Comparison Section */}
+        {comparisonData && comparisonData.comparisonData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="bg-gradient-to-br from-yellow-50 via-orange-50 to-red-50 p-6 rounded-xl shadow-xl border-2 border-orange-200 col-span-full"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mr-3 animate-pulse">
+                  <span className="text-white text-xl font-bold">🏆</span>
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  Daily Battle Arena
+                </h2>
+              </div>
+              {comparisonData.overallWinner && (
+                <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full shadow-lg">
+                  <span className="text-white font-bold text-lg">👑</span>
+                  <span className="text-white font-bold capitalize">{comparisonData.overallWinner}</span>
+                  <span className="text-white font-semibold">is Leading!</span>
+                </div>
+              )}
+            </div>
+
+            {/* Overall Stats Banner */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {comparisonData.userStats.map((stat, index) => {
+                const isCurrentUser = stat.username === user?.username
+                const isWinner = stat.username === comparisonData.overallWinner
+                return (
+                  <motion.div
+                    key={stat.userId}
+                    initial={{ opacity: 0, x: index === 0 ? -20 : 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.6 + index * 0.1 }}
+                    className={`p-4 rounded-lg shadow-md ${
+                      isCurrentUser 
+                        ? 'bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300' 
+                        : 'bg-gradient-to-r from-pink-100 to-red-100 border-2 border-pink-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-lg">
+                          <Image
+                            src={`/${stat.username}.jpg`}
+                            alt={`${stat.username} profile`}
+                            width={48}
+                            height={48}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg capitalize text-gray-800">{stat.username}</h3>
+                          {isWinner && (
+                            <span className="text-xs font-bold text-yellow-600 flex items-center">
+                              <span className="mr-1">🏆</span>
+                              Overall Winner
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isCurrentUser && (
+                        <span className="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">You</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-gray-800">{stat.totalCount.toLocaleString()}</p>
+                        <p className="text-xs text-gray-600">Total</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-green-600">{stat.daysWon}</p>
+                        <p className="text-xs text-gray-600">Wins</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-600">{stat.averageDaily}</p>
+                        <p className="text-xs text-gray-600">Avg/Day</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+
+            {/* Daily Comparison Grid */}
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Last 7 Days - Head to Head</h3>
+              {comparisonData.comparisonData.map((day, dayIndex) => {
+                const userTimezone = getUserTimezone(user?.username || '')
+                const today = getTodayInTimezone(userTimezone)
+                const isToday = day.date.toDateString() === today.toDateString()
+                const user1 = day.users[0]
+                const user2 = day.users[1]
+                const user1Count = user1?.count || 0
+                const user2Count = user2?.count || 0
+                const maxCount = Math.max(user1Count, user2Count, 1) // Avoid division by zero
+                const isTie = user1Count === user2Count && user1Count > 0
+                
+                return (
+                  <motion.div
+                    key={dayIndex}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.7 + dayIndex * 0.1 }}
+                    className={`p-4 rounded-lg shadow-md transition-all duration-300 hover:shadow-lg ${
+                      isToday 
+                        ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-yellow-400' 
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <span className={`font-semibold text-sm ${
+                          isToday ? 'text-orange-800' : 'text-gray-700'
+                        }`}>
+                          {formatDateInTimezone(day.date, userTimezone, { 
+                            weekday: 'short', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </span>
+                        {isToday && (
+                          <span className="px-2 py-1 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full">
+                            TODAY
+                          </span>
+                        )}
+                      </div>
+                      {day.winner && !isTie && (
+                        <div className="flex items-center space-x-1 px-3 py-1 bg-gradient-to-r from-green-400 to-green-500 rounded-full">
+                          <span className="text-white text-sm font-bold">🏆</span>
+                          <span className="text-white text-sm font-bold capitalize">{day.winner}</span>
+                          <span className="text-white text-xs">Won!</span>
+                        </div>
+                      )}
+                      {isTie && (
+                        <div className="flex items-center space-x-1 px-3 py-1 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full">
+                          <span className="text-white text-sm font-bold">🤝</span>
+                          <span className="text-white text-sm font-bold">Tie!</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Side by Side Bars */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* User 1 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-md">
+                              <Image
+                                src={`/${user1?.username}.jpg`}
+                                alt={`${user1?.username} profile`}
+                                width={32}
+                                height={32}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span className="font-semibold text-sm capitalize text-gray-800">
+                              {user1?.username}
+                            </span>
+                            {user1?.username === user?.username && (
+                              <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">You</span>
+                            )}
+                          </div>
+                          <span className={`text-xl font-bold ${
+                            day.winner === user1?.username 
+                              ? 'text-green-600' 
+                              : isTie 
+                              ? 'text-blue-600' 
+                              : 'text-gray-700'
+                          }`}>
+                            {user1Count.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="relative h-8 bg-gray-200 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(user1Count / maxCount) * 100}%` }}
+                            transition={{ duration: 0.8, delay: 0.8 + dayIndex * 0.1 }}
+                            className={`h-full rounded-full ${
+                              day.winner === user1?.username 
+                                ? 'bg-gradient-to-r from-green-400 to-green-600' 
+                                : isTie 
+                                ? 'bg-gradient-to-r from-blue-400 to-blue-600'
+                                : 'bg-gradient-to-r from-gray-400 to-gray-600'
+                            }`}
+                          />
+                          {user1Count > 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-xs font-bold text-white">
+                                {Math.round((user1Count / maxCount) * 100)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* User 2 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-md">
+                              <Image
+                                src={`/${user2?.username}.jpg`}
+                                alt={`${user2?.username} profile`}
+                                width={32}
+                                height={32}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span className="font-semibold text-sm capitalize text-gray-800">
+                              {user2?.username}
+                            </span>
+                            {user2?.username === user?.username && (
+                              <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">You</span>
+                            )}
+                          </div>
+                          <span className={`text-xl font-bold ${
+                            day.winner === user2?.username 
+                              ? 'text-green-600' 
+                              : isTie 
+                              ? 'text-blue-600' 
+                              : 'text-gray-700'
+                          }`}>
+                            {user2Count.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="relative h-8 bg-gray-200 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(user2Count / maxCount) * 100}%` }}
+                            transition={{ duration: 0.8, delay: 0.8 + dayIndex * 0.1 }}
+                            className={`h-full rounded-full ${
+                              day.winner === user2?.username 
+                                ? 'bg-gradient-to-r from-green-400 to-green-600' 
+                                : isTie 
+                                ? 'bg-gradient-to-r from-blue-400 to-blue-600'
+                                : 'bg-gradient-to-r from-gray-400 to-gray-600'
+                            }`}
+                          />
+                          {user2Count > 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-xs font-bold text-white">
+                                {Math.round((user2Count / maxCount) * 100)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Difference Indicator */}
+                    {!isTie && user1 && user2 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="flex items-center justify-center space-x-2">
+                          <span className="text-sm text-gray-600">Difference:</span>
+                          <span className={`text-lg font-bold ${
+                            Math.abs(user1Count - user2Count) > 1000 
+                              ? 'text-red-600' 
+                              : Math.abs(user1Count - user2Count) > 100 
+                              ? 'text-orange-600' 
+                              : 'text-green-600'
+                          }`}>
+                            {Math.abs(user1Count - user2Count).toLocaleString()}
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            {user1Count > user2Count ? user1.username : user2.username} ahead
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Export Button */}
         <motion.div
