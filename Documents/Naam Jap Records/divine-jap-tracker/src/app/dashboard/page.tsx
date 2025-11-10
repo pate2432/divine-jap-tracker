@@ -9,7 +9,7 @@ import { Download, LogOut } from 'lucide-react'
 import DigitalMala from '@/components/DigitalMala'
 import { exportToPDF } from '@/lib/pdfExport'
 import { getDailyQuote } from '@/lib/quotes'
-import { getUserTimezone, getTodayInTimezone, getLast7DaysInTimezone, formatDateInTimezone, isTodayInTimezone } from '@/lib/timezone'
+import { getUserTimezone, getTodayInTimezone, getLast7DaysInTimezone, formatDateInTimezone } from '@/lib/timezone'
 
 interface User {
   id: string
