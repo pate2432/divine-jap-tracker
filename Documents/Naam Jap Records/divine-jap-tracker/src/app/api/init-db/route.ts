@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       { username: 'manna', password: hashedPassword }
     ]
 
-    const createdUsers = []
+    const createdUsers: string[] = []
     for (const userData of users) {
       const user = await prisma.user.create({
         data: userData

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Get last 7 days
     const now = new Date()
-    const last7Days = []
+    const last7Days: Date[] = []
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
@@ -58,7 +58,14 @@ export async function GET(request: NextRequest) {
     })
 
     // Organize data by date
-    const comparisonData = []
+    type ComparisonDayData = {
+      date: Date
+      users: { username: string; count: number; userId: string }[]
+      winner: string | null
+      total: number
+    }
+    
+    const comparisonData: ComparisonDayData[] = []
     
     for (const date of last7Days) {
       const dayStart = new Date(date)
@@ -66,12 +73,7 @@ export async function GET(request: NextRequest) {
       const dayEnd = new Date(date)
       dayEnd.setHours(23, 59, 59, 999)
 
-      const dayData: {
-        date: Date
-        users: { username: string; count: number; userId: string }[]
-        winner: string | null
-        total: number
-      } = {
+      const dayData: ComparisonDayData = {
         date: date,
         users: [],
         winner: null,

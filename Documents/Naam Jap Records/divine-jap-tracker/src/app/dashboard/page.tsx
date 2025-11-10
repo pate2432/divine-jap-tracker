@@ -123,7 +123,7 @@ export default function Dashboard() {
       const userTimezone = getUserTimezone(currentUser.username)
       const last7Days = getLast7DaysInTimezone(userTimezone)
 
-      const dailyRecordsData = []
+      const dailyRecordsData: DailyRecord[] = []
       for (const date of last7Days) {
         const dateStr = date.toISOString()
         try {
