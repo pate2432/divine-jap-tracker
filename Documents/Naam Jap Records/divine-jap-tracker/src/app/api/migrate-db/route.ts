@@ -137,92 +137,62 @@ async function createTablesManually() {
   try {
     console.log('Creating User table...')
     
-    // Create User table with proper PostgreSQL syntax
-    // Using separate statements for better error handling
+    // Create User table with all constraints inline (simpler and more reliable)
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "User" (
-        "id" TEXT NOT NULL,
-        "username" TEXT NOT NULL,
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "username" TEXT NOT NULL UNIQUE,
         "password" TEXT NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `)
-
-    // Add primary key constraint (PostgreSQL doesn't support IF NOT EXISTS for constraints)
-    try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_pkey" PRIMARY KEY ("id")`)
-    } catch (e: any) {
-      // Constraint might already exist, ignore
-      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
-        console.log('Primary key already exists, skipping')
-      } else {
-        console.warn('Primary key constraint warning:', e.message)
-      }
-    }
-
-    // Add unique constraint
-    try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_username_key" UNIQUE ("username")`)
-    } catch (e: any) {
-      // Constraint might already exist, ignore
-      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
-        console.log('Unique constraint already exists, skipping')
-      } else {
-        console.warn('Unique constraint warning:', e.message)
-      }
-    }
+    console.log('✅ User table created')
 
     console.log('Creating JapCount table...')
 
-    // Create JapCount table
+    // Create JapCount table with all constraints inline
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "JapCount" (
-        "id" TEXT NOT NULL,
+        "id" TEXT NOT NULL PRIMARY KEY,
         "userId" TEXT NOT NULL,
         "count" INTEGER NOT NULL,
         "date" TIMESTAMP(3) NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "JapCount_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
       )
     `)
-
-    // Add primary key
-    try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "JapCount" ADD CONSTRAINT "JapCount_pkey" PRIMARY KEY ("id")`)
-    } catch (e: any) {
-      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
-        console.log('Primary key already exists, skipping')
-      } else {
-        console.warn('Primary key constraint warning:', e.message)
-      }
-    }
-
-    // Add foreign key
-    try {
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE "JapCount" 
-        ADD CONSTRAINT "JapCount_userId_fkey" 
-        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      `)
-    } catch (e: any) {
-      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
-        console.log('Foreign key already exists, skipping')
-      } else {
-        console.warn('Foreign key constraint warning:', e.message)
-      }
-    }
+    console.log('✅ JapCount table created')
 
     console.log('Creating indexes...')
 
     // Create unique index (for the unique constraint on userId + date)
+    // Use DO block to check if index exists first (PostgreSQL doesn't support IF NOT EXISTS for all cases)
     try {
       await prisma.$executeRawUnsafe(`
-        CREATE UNIQUE INDEX IF NOT EXISTS "JapCount_userId_date_key" ON "JapCount"("userId", "date")
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes 
+            WHERE indexname = 'JapCount_userId_date_key'
+          ) THEN
+            CREATE UNIQUE INDEX "JapCount_userId_date_key" ON "JapCount"("userId", "date");
+          END IF;
+        END $$;
       `)
+      console.log('✅ Unique index created')
     } catch (e: any) {
-      if (!e.message?.includes('already exists')) {
-        console.warn('Unique index warning:', e.message)
+      // If DO block fails, try simple CREATE
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE UNIQUE INDEX IF NOT EXISTS "JapCount_userId_date_key" ON "JapCount"("userId", "date")
+        `)
+        console.log('✅ Unique index created (fallback)')
+      } catch (e2: any) {
+        if (!e2.message?.includes('already exists')) {
+          console.warn('Unique index warning:', e2.message)
+        }
       }
     }
 
@@ -231,21 +201,23 @@ async function createTablesManually() {
       await prisma.$executeRawUnsafe(`
         CREATE INDEX IF NOT EXISTS "JapCount_userId_date_idx" ON "JapCount"("userId", "date")
       `)
+      console.log('✅ Regular index created')
     } catch (e: any) {
       if (!e.message?.includes('already exists')) {
         console.warn('Index warning:', e.message)
       }
     }
 
-    console.log('✅ All tables and constraints created')
+    console.log('✅ All tables and constraints created successfully')
   } catch (error: any) {
     console.error('❌ Manual table creation failed:', error)
     console.error('SQL Error details:', {
       message: error.message,
       code: error.code,
       meta: error.meta,
+      sqlState: error.meta?.code,
     })
-    throw new Error(`Failed to create tables: ${error.message}`)
+    throw new Error(`Failed to create tables: ${error.message || 'Unknown error'}`)
   }
 }
 
