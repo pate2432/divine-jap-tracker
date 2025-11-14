@@ -10,7 +10,15 @@ const prisma = new PrismaClient()
  * 
  * Security: In production, you should protect this endpoint with a secret key
  */
+export async function GET(request: NextRequest) {
+  return handleInitRequest(request)
+}
+
 export async function POST(request: NextRequest) {
+  return handleInitRequest(request)
+}
+
+async function handleInitRequest(request: NextRequest) {
   try {
     // Optional: Add secret key check for security
     const { searchParams } = new URL(request.url)
