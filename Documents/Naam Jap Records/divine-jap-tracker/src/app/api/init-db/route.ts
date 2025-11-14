@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-
-const prisma = new PrismaClient()
 
 /**
  * Database initialization endpoint
@@ -33,6 +31,34 @@ async function handleInitRequest(request: NextRequest) {
     }
 
     console.log('🔧 Initializing production database...')
+
+    // Check if DATABASE_URL is set
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL environment variable is not set' },
+        { status: 500 }
+      )
+    }
+
+    // Test connection and ensure tables exist
+    try {
+      await prisma.$connect()
+      // Try to query User table to check if it exists
+      await prisma.user.findFirst()
+    } catch (error: any) {
+      // If tables don't exist, return helpful error
+      if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+        return NextResponse.json(
+          { 
+            error: 'Database tables do not exist',
+            message: 'Please run database migration first. Visit: /api/migrate-db?secret=YOUR_SECRET_KEY',
+            hint: 'Tables need to be created before initializing users'
+          },
+          { status: 500 }
+        )
+      }
+      throw error
+    }
 
     // Check if users already exist
     const existingUsers = await prisma.user.findMany()
@@ -70,15 +96,24 @@ async function handleInitRequest(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('❌ Error initializing production database:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack,
+    })
     return NextResponse.json(
       { 
         error: 'Failed to initialize database',
-        message: error.message 
+        message: error.message || 'Unknown error',
+        code: error.code,
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error.meta,
+          stack: error.stack 
+        })
       },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 

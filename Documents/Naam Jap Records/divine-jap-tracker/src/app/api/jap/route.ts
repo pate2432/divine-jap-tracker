@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { getUserTimezone, getTodayInTimezone } from '@/lib/timezone'
-
-const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,10 +79,35 @@ export async function GET(request: NextRequest) {
       japCounts,
       statistics,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching jap counts:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+    })
+    
+    // Check if it's a database table error
+    if (error.code === 'P2021' || error.message?.includes('does not exist')) {
+      return NextResponse.json(
+        { 
+          error: 'Database tables do not exist',
+          message: 'Please run database migration first',
+          hint: 'Visit /api/migrate-db?secret=YOUR_SECRET_KEY to create tables'
+        },
+        { status: 500 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        message: error.message || 'Unknown error',
+        ...(process.env.NODE_ENV === 'development' && { 
+          code: error.code,
+          details: error.meta 
+        })
+      },
       { status: 500 }
     )
   }
