@@ -149,22 +149,26 @@ async function createTablesManually() {
       )
     `)
 
-    // Add primary key constraint
+    // Add primary key constraint (PostgreSQL doesn't support IF NOT EXISTS for constraints)
     try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT IF NOT EXISTS "User_pkey" PRIMARY KEY ("id")`)
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_pkey" PRIMARY KEY ("id")`)
     } catch (e: any) {
       // Constraint might already exist, ignore
-      if (!e.message?.includes('already exists')) {
+      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
+        console.log('Primary key already exists, skipping')
+      } else {
         console.warn('Primary key constraint warning:', e.message)
       }
     }
 
     // Add unique constraint
     try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT IF NOT EXISTS "User_username_key" UNIQUE ("username")`)
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD CONSTRAINT "User_username_key" UNIQUE ("username")`)
     } catch (e: any) {
       // Constraint might already exist, ignore
-      if (!e.message?.includes('already exists')) {
+      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
+        console.log('Unique constraint already exists, skipping')
+      } else {
         console.warn('Unique constraint warning:', e.message)
       }
     }
@@ -185,9 +189,11 @@ async function createTablesManually() {
 
     // Add primary key
     try {
-      await prisma.$executeRawUnsafe(`ALTER TABLE "JapCount" ADD CONSTRAINT IF NOT EXISTS "JapCount_pkey" PRIMARY KEY ("id")`)
+      await prisma.$executeRawUnsafe(`ALTER TABLE "JapCount" ADD CONSTRAINT "JapCount_pkey" PRIMARY KEY ("id")`)
     } catch (e: any) {
-      if (!e.message?.includes('already exists')) {
+      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
+        console.log('Primary key already exists, skipping')
+      } else {
         console.warn('Primary key constraint warning:', e.message)
       }
     }
@@ -196,11 +202,13 @@ async function createTablesManually() {
     try {
       await prisma.$executeRawUnsafe(`
         ALTER TABLE "JapCount" 
-        ADD CONSTRAINT IF NOT EXISTS "JapCount_userId_fkey" 
+        ADD CONSTRAINT "JapCount_userId_fkey" 
         FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
       `)
     } catch (e: any) {
-      if (!e.message?.includes('already exists')) {
+      if (e.message?.includes('already exists') || e.message?.includes('duplicate')) {
+        console.log('Foreign key already exists, skipping')
+      } else {
         console.warn('Foreign key constraint warning:', e.message)
       }
     }
